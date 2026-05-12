@@ -622,7 +622,6 @@ function goTo(id){
 const aud = document.getElementById('aud');
 let ci = 0;
 let looping = false;
-let playing = false;
 
 const TRACKS = [
   { name: 'I Love You',          artist: 'Amma',               url: 'https://files.catbox.moe/yvvg9w.mp3' },
@@ -633,18 +632,10 @@ const TRACKS = [
 ];
 
 function startAudio() {
-  if (TRACKS[0].url) {
-    aud.src = TRACKS[0].url;
-    aud.play().then(() => setP(true)).catch(err => {
-      console.log("Autoplay prevented:", err);
-    });
-  }
+  selTrack(0);   // Load and try to play first track
 }
 
 function buildPlaylist() {
-  document.getElementById('tName').textContent = TRACKS[ci].name;
-  document.getElementById('tArtist').textContent = TRACKS[ci].artist;
-
   const pl = document.getElementById('pl');
   pl.innerHTML = '';
 
@@ -673,9 +664,11 @@ function selTrack(i) {
 
   if (t.url) {
     aud.src = t.url;
-    aud.play().then(() => setP(true)).catch(() => setP(false));
-  } else {
-    setP(false);
+    aud.load();
+
+    aud.play()
+      .then(() => setP(true))
+      .catch(() => setP(false));
   }
 }
 
@@ -684,8 +677,9 @@ function togglePlay() {
     highlight();
     return;
   }
-  if (aud.paused) {
-    aud.play().then(() => setP(true)).catch(() => {});
+  
+  if (aud.paused || aud.ended) {
+    aud.play().then(() => setP(true)).catch(() => setP(false));
   } else {
     aud.pause();
     setP(false);
@@ -693,12 +687,12 @@ function togglePlay() {
 }
 
 function setP(p) {
-  playing = p;
   document.getElementById('playBtn').textContent = p ? '⏸' : '▶';
   document.getElementById('vinyl').classList.toggle('spin', p);
   document.getElementById('eq').classList.toggle('paused', !p);
 }
 
+// Progress & Time
 aud.addEventListener('timeupdate', () => {
   const pct = aud.duration ? (aud.currentTime / aud.duration) * 100 : 0;
   document.getElementById('pf').style.width = pct + '%';
@@ -718,16 +712,17 @@ aud.addEventListener('ended', () => {
   }
 });
 
-function next() {
-  selTrack((ci + 1) % TRACKS.length);
-}
+aud.addEventListener('error', () => {
+  console.error("Audio failed to load. Src:", aud.src);
+  document.getElementById('tName').textContent = "❌ Can't play this track";
+});
 
-function prev() {
-  selTrack((ci - 1 + TRACKS.length) % TRACKS.length);
-}
+// Controls
+function next() { selTrack((ci + 1) % TRACKS.length); }
+function prev() { selTrack((ci - 1 + TRACKS.length) % TRACKS.length); }
 
 function restart() {
-  if (aud.src && aud.src !== location.href) {
+  if (aud.src) {
     aud.currentTime = 0;
     if (aud.paused) aud.play().then(() => setP(true));
   }
@@ -754,12 +749,14 @@ function fmt(s) {
 
 function highlight() {
   const b = document.querySelector('.up-btn');
-  b.style.borderColor = '#ff6b9d';
-  b.style.color = '#ff6b9d';
-  setTimeout(() => {
-    b.style.borderColor = '';
-    b.style.color = '';
-  }, 1200);
+  if (b) {
+    b.style.borderColor = '#ff6b9d';
+    b.style.color = '#ff6b9d';
+    setTimeout(() => {
+      b.style.borderColor = '';
+      b.style.color = '';
+    }, 1200);
+  }
 }
 
 function loadFile(e) {
@@ -774,7 +771,7 @@ function loadFile(e) {
 
 // Initialize
 buildPlaylist();
-</script>
-
+startAudio();   // This loads the first song automatically
+</script> 
 </body>
 </html>
